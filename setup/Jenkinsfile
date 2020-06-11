@@ -1,0 +1,31 @@
+pipeline {	
+	agent any
+	stages {		
+		stage('Create EKS cluster') {
+			steps {
+				withAWS(credentials:'eks-capstone-app', region:'us-west-2') {
+					sh '''
+						eksctl create cluster --name eks-capstone-app \
+						--nodegroup-name nodegroup1 \
+						--node-type t2.micro \
+						--nodes 2 \
+						--nodes-min 1 \
+						--nodes-max 2 \
+						--node-ami auto \
+						--region us-west-2 \
+						--zones us-west-2a \
+						--zones us-west-2b \
+						
+					'''
+				}
+			}			
+		}
+		stage('Set kubectl config') {
+			steps {
+				withAWS(credentials:'eks-capstone-app', region:'us-west-2') {
+					sh 'aws eks update-kubeconfig --name eks-capstone-app --region us-west-2'
+				}
+			}
+		}
+	}
+}

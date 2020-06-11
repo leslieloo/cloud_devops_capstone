@@ -1,0 +1,33 @@
+pipeline {	
+	agent any
+	stages {
+		stage('Lint html & Dockerfile') {
+			steps {
+				sh 'tidy -q -e deployment/index.html'
+				sh 'hadolint deployment/Dockerfile'
+			}
+		}
+		stage('Build Docker Image') {
+			steps {
+				sh 'cd deployment && cat index.html | sed "s/{{BUILD_NUMBER}}/${BUILD_NUMBER}/g" > index.html'
+				sh 'cd deployment && docker build -t leslieloo/capstone-app:${BUILD_NUMBER} .'				
+			}
+		}
+		stage('Push Docker Image to DockerHub') {
+			steps {
+				withCredentials([usernamePassword(credentialsId:'dockerhub', usernameVariable:'HUB_USERNAME', passwordVariable:'HUB_PASSWORD')]) {
+					sh 'echo $HUB_PASSWORD | docker login -u $HUB_USERNAME --password-stdin'
+					sh 'docker push leslieloo/capstone-app:${BUILD_NUMBER}'
+				}
+			}
+		}
+		stage('Deploy to K8s cluster') {
+			steps {
+				withAWS(credentials:'eks-capstone-app', region:'us-west-2') {
+					sh 'cat deployment/deployment.yaml | sed "s/{{BUILD_NUMBER}}/${BUILD_NUMBER}/g" | kubectl apply -f -'
+					sh 'kubectl apply -f deployment/services.yaml'
+				}
+			}
+		}
+	}
+}
